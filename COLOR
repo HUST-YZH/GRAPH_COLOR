@@ -1,0 +1,324 @@
+#include<cstdio>
+#include<cstring>
+#include<iostream>
+#include<cstdlib>
+#include<stdio.h>
+#include<time.h>
+#define k	5	
+#define N 125
+using namespace std;
+char a[20]="DSJC125.1.col"; 
+int edge[N][N];
+int delta(int pot,int ex_color,int color,int c[N]);
+int change(int pot,int ex_color,int color,int d[N][k],int c[N],long int forbid[125][k],long int do_time);		//改变仇人表和涂色数组 
+int func(int d[N][k],int c[N]);
+/***********
+		edge[N][N]  表示边界关系
+		potcolor[N]			存储点的颜色 
+		conflict_pot[N][k]	仇人表 
+		conflicts				冲突值
+		del[N][k]		存储做出小动作产生变化量的大小
+		best_pot	best_color	best_del   
+		最好的点    （变到）最好的颜色，最好的变化量 
+***********/ 
+int main()
+{
+	freopen(a,"rt",stdin);
+	freopen("1.txt","wt",stdout);
+	char c[100];
+	int n,m;
+	//int edge[N][N];			//描述点与点的关系
+	int pot_color[N];  			//取值范围为0~N-1 
+	int conflict_pot[N][k];		//仇人表
+//	int conflict_num[N]; 		//用于存储冲突状态 
+	int random=0; 
+	int num_color=0;
+	int conflicts=0;			//冲突计算函数 
+	int i=0,j=0,t=0;
+	int a,b;					//用于读取文件 
+	int del[N][k];
+	int best_pot;
+	int best_color;
+	int best_del=0;
+	long int forbid_pot[N][k]; 	//禁忌表 
+	long int do_time=10;
+	int best_does[1000][2];			//存储可行的所有非禁忌解 
+	int for_best_does[1000][2]; 
+	int num_does=0,sta_num_does=0;
+	int for_num_does=0,sta_for_num_does=0;
+	srand((int)time(0));
+	int num_rand=0;
+	char w;
+	do
+	{
+		cin>>c;
+	}while(strcmp(c,"edge")!=0);
+	cin>>n>>m;
+//	cout<<n<<' '<<m<<endl;
+	for(i=0;i<m;i++)
+	{
+		cin>>w>>a>>b;
+		edge[a][b]=1;
+		edge[b][a]=1;
+//		cout<<a<<" "<<b<<endl;
+	}
+	for(i=0;i<N;i++)
+	{
+		//conflict_num[i]=0;
+		for(j=0;j<k;j++)
+		{
+			forbid_pot[i][j]=0;				//禁忌表	
+			conflict_pot[i][j]=0;			//仇人表 
+		}
+	}
+	for(i=0;i<N;i++)
+	{
+		if(random==k)
+		{
+			random=0;						//产生一组解 
+		} 
+		pot_color[i]=random;		//{0,1,2,3,4,5,6}
+		random++;
+	}
+	for(i=0;i<N;i++)
+	{
+		for(j=0;j<N;j++)
+		{
+			if((edge[i][j]==1||edge[j][i]==1)&&i!=j)
+			{
+				conflict_pot[i][pot_color[j]]++; 			//制作最初仇人表 
+			//	conflict_pot[j][pot_color[i]]++;
+				if(pot_color[i]==pot_color[j])
+				{
+					//conflict_num[i]++;
+					//conflict_num[j]++;
+					conflicts++;							//相当于每一个冲突边界都数了两次 
+				}	
+			}
+		}
+	}
+	cout<<"冲突数"<<endl;
+	cout<<conflicts<<endl; 
+	//printf("冲突数\n");
+	//printf("%d",conflicts);
+	while(func(conflict_pot,pot_color)!=0)
+	{
+		printf("开始循环\n");
+		for(i=0;i<N;i++)							//初始化算法变化的数组 
+		{
+			for(j=0;j<k;j++)
+			{
+				del[i][j]=0;
+			}
+		} 
+		for(i=0;i<N;i++)
+		{
+			if(conflict_pot[i][pot_color[i]]!=0)
+			{
+				for(j=0;j<k;j++)							//对每个点都进行单变化计算 
+				{
+					if((j+pot_color[i]>=k))					//del[i][j]		i表示点的序号，j表示变到的新的颜色 ，数值代表变化量 
+					{
+						del[i][j+pot_color[i]-k]=delta(i,pot_color[i],j+pot_color[i]-k,pot_color);
+					}
+					else
+					{
+						del[i][j+pot_color[i]]=delta(i,pot_color[i],j+pot_color[i],pot_color);
+					}
+				}
+			}
+		}
+	//	printf("求值\n");
+		best_del=10;										//最好变化量 
+		for(i=0;i<N;i++)
+		{
+			for(j=0;j<k;j++)
+			{
+				if(best_del>del[i][j])
+				{
+					best_del=del[i][j];						//找出最好的变化值 (!.全部是禁忌解	2.禁忌解和非禁忌解糅合	3.全部是非禁忌解)
+				}
+			}
+		}
+		printf("最优 %d\n",best_del);
+		sta_num_does=0;
+		sta_for_num_does=0; 
+		num_does=0;
+		for_num_does=0;										//数组置零存储 
+		for(i=0;i<N;i++)
+		{
+			for(j=0;j<k;j++)
+			{
+				if(del[i][j]==best_del)						//遍寻和储存最优解 
+				{
+					if(do_time>forbid_pot[i][j])			//非禁忌解的存储 
+					{
+						if(num_does==1000)
+						{
+							sta_num_does++;
+							num_does=0;
+						}
+						best_does[num_does][0]=i;			//点的序号 
+						best_does[num_does][1]=j;			//变化到的颜色 
+						num_does++; 
+					}
+					else 									//禁忌解的存储 
+					{
+						if(for_num_does==1000)
+						{
+							sta_for_num_does++;
+							for_num_does=0;
+						}
+						for_best_does[for_num_does][0]=i;			//点的序号 
+						for_best_does[for_num_does][1]=j;			//变化到的颜色 
+						for_num_does++; 
+					}
+				}
+			}
+		}
+			if(for_num_does!=0)
+			{
+				printf("找到禁忌解\n");
+			}
+			if(num_does!=0)
+			{
+				printf("找到非禁忌解\n");
+			}
+	//	num_does=0;
+			printf("进入选择\n");
+			for(;1;)
+			{
+				if(sta_num_does==0&&num_does==0&&best_del<0)		//当不存在非禁忌解时做禁忌做法 
+				{
+					num_rand=(rand()%(for_num_does+1));
+					printf("执行禁忌算法	随机数%d\n",num_rand);
+					conflicts=conflicts+best_del;
+					//	conflicts=conflicts+delta(for_best_does[num_rand][0],pot_color[for_best_does[num_rand][0]],for_best_does[num_rand][1],pot_color);
+					//	printf("excolor%d	",pot_color[best_does[num_rand][0]]);
+					//	printf("change%d	",best_does[num_rand][1]);
+					//forbid_pot[for_best_does[num_rand][0]][pot_color[for_best_does[num_rand][0]]]=do_time+rand()%10;
+					change(for_best_does[num_rand][0],pot_color[for_best_does[num_rand][0]],for_best_does[num_rand][1],conflict_pot,pot_color,forbid_pot,do_time);
+					printf("%d	%d",conflicts,func(conflict_pot,pot_color)); 
+					//	printf("color%d\n",pot_color[best_does[num_rand][0]]);
+					do_time++;
+					break;
+				}
+				else if(sta_num_does==0&&num_does!=0)
+				{
+					num_rand=(rand()%(num_does+1));
+					printf("非饱和随机数%d\n",num_rand);
+					conflicts=conflicts+best_del;
+					//	conflicts=conflicts+delta(best_does[num_rand][0],pot_color[best_does[num_rand][0]],best_does[num_rand][1],pot_color);
+					//	printf("excolor%d	",pot_color[best_does[num_rand][0]]);
+					//	printf("change%d	",best_does[num_rand][1]);
+					//	forbid_pot[for_best_does[num_rand][0]][pot_color[for_best_does[num_rand][0]]]=do_time+do_time+rand()%10;
+					change(best_does[num_rand][0],pot_color[best_does[num_rand][0]],best_does[num_rand][1],conflict_pot,pot_color,forbid_pot,do_time);
+					printf("%d	%d",conflicts,func(conflict_pot,pot_color)); 
+					//	printf("color%d\n",pot_color[best_does[num_rand][0]]);
+					do_time++;
+					//	forbid_pot[best_does[num_rand][0]][best_does[num_rand][1]]=do_time+10; 
+						break;
+				}
+				else if(sta_num_does!=0)
+				{
+						num_rand=(rand()%(1000));
+						printf("饱和随机数%d\n",num_rand);
+						conflicts=conflicts+best_del;
+					//	conflicts=conflicts+delta(best_does[num_rand][0],pot_color[best_does[num_rand][0]],best_does[num_rand][1],pot_color);
+					//	printf("excolor%d	",pot_color[best_does[num_rand][0]]);
+					//	printf("change%d	",best_does[num_rand][1]);
+					//	forbid_pot[for_best_does[num_rand][0]][pot_color[for_best_does[num_rand][0]]]=do_time+do_time+rand()%10;
+						change(best_does[num_rand][0],pot_color[best_does[num_rand][0]],best_does[num_rand][1],conflict_pot,pot_color,forbid_pot,do_time);
+						printf("%d	%d",conflicts,func(conflict_pot,pot_color)); 
+					//	printf("color%d\n",pot_color[best_does[num_rand][0]]);
+						do_time++;
+					//	forbid_pot[best_does[num_rand][0]][best_does[num_rand][1]]=do_time+10; 
+						break;
+				}
+				else 
+				{
+					return 55;
+				}
+				//	conflicts=conflicts+delta(best_does[num_rand][0],pot_color[best_does[num_rand][0]],best_does[num_rand][1],pot_color);
+				//	printf("excolor%d	",pot_color[best_does[num_rand][0]]);
+				//	printf("change%d	",best_does[num_rand][1]);
+				}
+			/*int conflict=0; 
+			for(i=0;i<N;i++)
+			{
+				conflict=conflict+conflict_pot[i][pot_color[i]];
+			}
+			printf("冲突数	%d\n",conflict);*/
+			/*if(conflicts!=func(conflict_pot,pot_color))
+			{
+				return 99;
+			}*/
+	}
+	printf("结束\n");
+	for(i=0;i<N;i++)
+	{
+		printf("%d  %d \n",i,pot_color[i]);
+	}
+	for(i=0;i<N;i++)
+	{
+		for(j=0;j<N;j++)
+		{
+			if(pot_color[i]==pot_color[j]&&edge[i][j]==1)
+			{
+				printf("失败\n");
+			}
+		}
+	} 
+	return 0;
+}
+int delta(int pot,int ex_color,int color,int c[N])			//计算变化值 
+{
+	int change=0;
+	int i=0;
+	if(ex_color==color)
+	{
+		return 0;
+	}
+	for(i=0;i<N;i++)
+	{
+		if(edge[pot][i]==1&&i!=pot)
+		{
+			if(c[i]==ex_color)
+			{
+				change--;
+				change--;
+			}
+			else if(c[i]==color)
+			{
+				change++;
+				change++;
+			}
+		}
+	}
+	return change;
+}
+int change(int pot,int ex_color,int color,int d[N][k],int c[N],long int forbid[N][k],long int do_time)		//改变仇人表和涂色数组 
+{
+	int i=0;
+	c[pot]=color; 													//改变颜色存储数组 
+	for(i=0;i<N;i++)												//改变仇人表 
+	{
+		if(edge[pot][i]==1&&i!=pot)
+		{
+			d[i][ex_color]--;
+			d[i][color]++;
+		}
+	}
+	forbid[pot][ex_color]=do_time+rand()%10;
+	return 0;
+}
+int func(int d[N][k],int c[N])
+{
+	int i=0;
+	int conflict=0;
+	for(i=0;i<N;i++)
+	{
+		conflict=conflict+d[i][c[i]];
+	}
+	return conflict;
+}
